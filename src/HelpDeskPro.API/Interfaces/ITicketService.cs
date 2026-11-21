@@ -30,4 +30,10 @@ public interface ITicketService
         int id,
         ClaimsPrincipal caller,
         CancellationToken cancellationToken);
+
+    Task<TicketAssignmentOperationResult> AssignAsync(
+        int id,
+        AssignTicketRequest request,
+        ClaimsPrincipal caller,
+        CancellationToken cancellationToken);
 }

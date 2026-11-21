@@ -1,6 +1,7 @@
 @HelpDeskPro_API_HostAddress = http://localhost:5239
 @accessToken = replace-with-a-valid-jwt
 @ticketId = 1
+@agentUserId = 2
 
 ### Create a ticket
 POST {{HelpDeskPro_API_HostAddress}}/api/tickets
@@ -32,6 +33,24 @@ Content-Type: application/json
   "description": "The VPN client still fails to connect.",
   "categoryId": 1,
   "priority": "high"
+}
+
+### Assign or reassign a ticket (Admin only)
+PUT {{HelpDeskPro_API_HostAddress}}/api/tickets/{{ticketId}}/assignment
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "agentUserId": {{agentUserId}}
+}
+
+### Unassign a ticket (Admin only)
+PUT {{HelpDeskPro_API_HostAddress}}/api/tickets/{{ticketId}}/assignment
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "agentUserId": null
 }
 
 ### Delete a ticket (Admin only)

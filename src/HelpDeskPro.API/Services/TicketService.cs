@@ -185,6 +185,61 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
         return new TicketOperationResult(TicketOperationStatus.Success);
     }
 
+    public async Task<TicketAssignmentOperationResult> AssignAsync(
+        int id,
+        AssignTicketRequest request,
+        ClaimsPrincipal caller,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCaller(caller, out _, out var role)
+            || role != UserRole.Admin)
+        {
+            return new TicketAssignmentOperationResult(TicketOperationStatus.Forbidden);
+        }
+
+        if (request.AgentUserId is <= 0)
+        {
+            return new TicketAssignmentOperationResult(TicketOperationStatus.InvalidRequest);
+        }
+
+        var ticket = await dbContext.Tickets
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (ticket is null)
+        {
+            return new TicketAssignmentOperationResult(TicketOperationStatus.NotFound);
+        }
+
+        User? agent = null;
+        if (request.AgentUserId.HasValue)
+        {
+            agent = await dbContext.Users
+                .SingleOrDefaultAsync(
+                    user => user.Id == request.AgentUserId.Value,
+                    cancellationToken);
+            if (agent is null)
+            {
+                return new TicketAssignmentOperationResult(TicketOperationStatus.NotFound);
+            }
+
+            if (agent.Role != UserRole.Agent || !agent.IsActive)
+            {
+                return new TicketAssignmentOperationResult(TicketOperationStatus.InvalidRequest);
+            }
+        }
+
+        ticket.AssignedToUserId = agent?.Id;
+        ticket.UpdatedAtUtc = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return new TicketAssignmentOperationResult(
+            TicketOperationStatus.Success,
+            new TicketAssignmentResponse(
+                ticket.Id,
+                ticket.Title,
+                agent?.Id,
+                agent?.FullName));
+    }
+
     private IQueryable<Ticket> GetAccessibleTickets(int userId, UserRole role) =>
         role switch
         {

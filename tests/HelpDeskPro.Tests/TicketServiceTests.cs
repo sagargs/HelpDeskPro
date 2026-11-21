@@ -197,6 +197,196 @@ public class TicketServiceTests
     }
 
     [Fact]
+    public async Task AdminCanAssignTicketToActiveAgent()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        await SeedTicketsAsync(dbContext);
+        var service = new TicketService(dbContext);
+
+        var result = await service.AssignAsync(
+            103,
+            new AssignTicketRequest { AgentUserId = AgentId },
+            CreatePrincipal(AdminId, UserRole.Admin),
+            CancellationToken.None);
+
+        Assert.Equal(TicketOperationStatus.Success, result.Status);
+        Assert.Equal(103, result.Assignment?.TicketId);
+        Assert.Equal("Ticket 103", result.Assignment?.TicketTitle);
+        Assert.Equal(AgentId, result.Assignment?.AssignedAgentUserId);
+        Assert.Equal($"User {AgentId}", result.Assignment?.AssignedAgentName);
+        Assert.Null(typeof(TicketAssignmentResponse).GetProperty("AssignedAtUtc"));
+
+        var ticket = await dbContext.Tickets.SingleAsync(item => item.Id == 103);
+        Assert.Equal(AgentId, ticket.AssignedToUserId);
+        Assert.Equal(DateTimeKind.Utc, ticket.UpdatedAtUtc.Kind);
+    }
+
+    [Fact]
+    public async Task AdminCanReassignTicketToAnotherAgent()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        await SeedTicketsAsync(dbContext);
+        var service = new TicketService(dbContext);
+
+        var result = await service.AssignAsync(
+            101,
+            new AssignTicketRequest { AgentUserId = OtherAgentId },
+            CreatePrincipal(AdminId, UserRole.Admin),
+            CancellationToken.None);
+
+        Assert.Equal(TicketOperationStatus.Success, result.Status);
+        Assert.Equal(OtherAgentId, result.Assignment?.AssignedAgentUserId);
+        Assert.Equal(OtherAgentId, (await dbContext.Tickets.SingleAsync(item => item.Id == 101)).AssignedToUserId);
+    }
+
+    [Fact]
+    public async Task AdminCanUnassignTicketWithExplicitNullAgentId()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        await SeedTicketsAsync(dbContext);
+        var service = new TicketService(dbContext);
+
+        var result = await service.AssignAsync(
+            101,
+            new AssignTicketRequest { AgentUserId = null },
+            CreatePrincipal(AdminId, UserRole.Admin),
+            CancellationToken.None);
+
+        Assert.Equal(TicketOperationStatus.Success, result.Status);
+        Assert.Null(result.Assignment?.AssignedAgentUserId);
+        Assert.Null(result.Assignment?.AssignedAgentName);
+        Assert.Null((await dbContext.Tickets.SingleAsync(item => item.Id == 101)).AssignedToUserId);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Employee, EmployeeId)]
+    [InlineData(UserRole.Agent, AgentId)]
+    public async Task NonAdminCannotAssignTickets(UserRole role, int userId)
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        await SeedTicketsAsync(dbContext);
+        var service = new TicketService(dbContext);
+
+        var result = await service.AssignAsync(
+            103,
+            new AssignTicketRequest { AgentUserId = AgentId },
+            CreatePrincipal(userId, role),
+            CancellationToken.None);
+
+        Assert.Equal(TicketOperationStatus.Forbidden, result.Status);
+        Assert.Null((await dbContext.Tickets.SingleAsync(item => item.Id == 103)).AssignedToUserId);
+    }
+
+    [Theory]
+    [InlineData(EmployeeId)]
+    [InlineData(AdminId)]
+    [InlineData(6)]
+    public async Task AdminCannotAssignTicketToNonActiveAgent(int targetUserId)
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        await SeedTicketsAsync(dbContext);
+        dbContext.Users.Add(CreateUser(6, UserRole.Agent, isActive: false));
+        await dbContext.SaveChangesAsync();
+        var service = new TicketService(dbContext);
+
+        var result = await service.AssignAsync(
+            103,
+            new AssignTicketRequest { AgentUserId = targetUserId },
+            CreatePrincipal(AdminId, UserRole.Admin),
+            CancellationToken.None);
+
+        Assert.Equal(TicketOperationStatus.InvalidRequest, result.Status);
+        Assert.Null((await dbContext.Tickets.SingleAsync(item => item.Id == 103)).AssignedToUserId);
+    }
+
+    [Fact]
+    public async Task AdminGetsNotFoundForNonexistentAgent()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        await SeedTicketsAsync(dbContext);
+        var service = new TicketService(dbContext);
+
+        var result = await service.AssignAsync(
+            103,
+            new AssignTicketRequest { AgentUserId = 999 },
+            CreatePrincipal(AdminId, UserRole.Admin),
+            CancellationToken.None);
+
+        Assert.Equal(TicketOperationStatus.NotFound, result.Status);
+        Assert.Null((await dbContext.Tickets.SingleAsync(item => item.Id == 103)).AssignedToUserId);
+    }
+
+    [Fact]
+    public async Task AdminGetsNotFoundForNonexistentTicket()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var service = new TicketService(dbContext);
+
+        var result = await service.AssignAsync(
+            999,
+            new AssignTicketRequest { AgentUserId = AgentId },
+            CreatePrincipal(AdminId, UserRole.Admin),
+            CancellationToken.None);
+
+        Assert.Equal(TicketOperationStatus.NotFound, result.Status);
+    }
+
+    [Fact]
+    public async Task AgentCanSeeTicketAfterAdminAssignsItToThem()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        await SeedTicketsAsync(dbContext);
+        var service = new TicketService(dbContext);
+
+        var assignment = await service.AssignAsync(
+            103,
+            new AssignTicketRequest { AgentUserId = OtherAgentId },
+            CreatePrincipal(AdminId, UserRole.Admin),
+            CancellationToken.None);
+        var tickets = await service.GetAllAsync(
+            CreatePrincipal(OtherAgentId, UserRole.Agent),
+            CancellationToken.None);
+
+        Assert.Equal(TicketOperationStatus.Success, assignment.Status);
+        Assert.Contains(tickets, ticket => ticket.Id == 103);
+    }
+
+    [Fact]
+    public async Task AgentCannotSeeTicketAfterItIsAssignedToAnotherAgent()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        await SeedTicketsAsync(dbContext);
+        var service = new TicketService(dbContext);
+
+        await service.AssignAsync(
+            101,
+            new AssignTicketRequest { AgentUserId = OtherAgentId },
+            CreatePrincipal(AdminId, UserRole.Admin),
+            CancellationToken.None);
+        var ticket = await service.GetByIdAsync(
+            101,
+            CreatePrincipal(AgentId, UserRole.Agent),
+            CancellationToken.None);
+
+        Assert.Null(ticket);
+    }
+
+    [Fact]
+    public void AssignmentRequestRequiresAgentUserIdPropertyToBePresent()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
+        var explicitNull = JsonSerializer.Deserialize<AssignTicketRequest>(
+            """{"agentUserId":null}""",
+            options);
+
+        Assert.NotNull(explicitNull);
+        Assert.Null(explicitNull.AgentUserId);
+        Assert.Throws<JsonException>(
+            () => JsonSerializer.Deserialize<AssignTicketRequest>("{}", options));
+    }
+
+    [Fact]
     public async Task CreateRejectsInvalidCategoryAndPriority()
     {
         await using var dbContext = await CreateDbContextAsync();
@@ -328,9 +518,15 @@ public class TicketServiceTests
             .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
             .Cast<AuthorizeAttribute>()
             .Single();
+        var assignmentAuthorization = typeof(TicketsController)
+            .GetMethod(nameof(TicketsController.Assign))!
+            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+            .Cast<AuthorizeAttribute>()
+            .Single();
 
         Assert.Equal(AuthorizationPolicies.AuthenticatedUser, controllerAuthorization.Policy);
         Assert.Equal(AuthorizationPolicies.AdminOnly, deleteAuthorization.Policy);
+        Assert.Equal(AuthorizationPolicies.AdminOnly, assignmentAuthorization.Policy);
     }
 
     private static async Task<ApplicationDbContext> CreateDbContextAsync()
@@ -365,7 +561,7 @@ public class TicketServiceTests
         await dbContext.SaveChangesAsync();
     }
 
-    private static User CreateUser(int id, UserRole role) =>
+    private static User CreateUser(int id, UserRole role, bool isActive = true) =>
         new()
         {
             Id = id,
@@ -373,7 +569,7 @@ public class TicketServiceTests
             Email = $"user{id}@example.com",
             PasswordHash = "test-hash",
             Role = role,
-            IsActive = true,
+            IsActive = isActive,
             CreatedAtUtc = DateTime.UtcNow
         };
 

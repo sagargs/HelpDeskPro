@@ -1,0 +1,6 @@
+@HelpDeskPro_API_HostAddress = http://localhost:5239
+@accessToken = replace-with-a-valid-admin-jwt
+
+### List active agents (Admin only)
+GET {{HelpDeskPro_API_HostAddress}}/api/users/agents
+Authorization: Bearer {{accessToken}}

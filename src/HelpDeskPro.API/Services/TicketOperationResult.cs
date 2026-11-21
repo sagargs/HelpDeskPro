@@ -14,3 +14,7 @@ public enum TicketOperationStatus
 public sealed record TicketOperationResult(
     TicketOperationStatus Status,
     TicketResponse? Ticket = null);
+
+public sealed record TicketAssignmentOperationResult(
+    TicketOperationStatus Status,
+    TicketAssignmentResponse? Assignment = null);

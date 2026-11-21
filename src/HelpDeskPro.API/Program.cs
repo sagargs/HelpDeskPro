@@ -33,6 +33,7 @@ builder.Services.AddSingleton<IConfigureOptions<JwtBearerOptions>, JwtBearerOpti
 builder.Services.AddHelpDeskAuthorization();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITicketService, TicketService>();
+builder.Services.AddScoped<IAgentDirectoryService, AgentDirectoryService>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi(options =>

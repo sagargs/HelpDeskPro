@@ -79,6 +79,34 @@ public sealed class TicketsController(ITicketService ticketService) : Controller
         };
     }
 
+    [HttpPut("{id:int}/assignment")]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    [ProducesResponseType<TicketAssignmentResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketAssignmentResponse>> Assign(
+        int id,
+        AssignTicketRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await ticketService.AssignAsync(id, request, User, cancellationToken);
+        return result.Status switch
+        {
+            TicketOperationStatus.Success when result.Assignment is not null =>
+                Ok(result.Assignment),
+            TicketOperationStatus.InvalidRequest => BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Invalid agent assignment",
+                Detail = "The target must be an active Agent account."
+            }),
+            TicketOperationStatus.Forbidden => Forbid(),
+            TicketOperationStatus.NotFound => NotFound(),
+            _ => throw new InvalidOperationException("Ticket assignment returned an invalid result.")
+        };
+    }
+
     [HttpDelete("{id:int}")]
     [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
