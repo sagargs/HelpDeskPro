@@ -11,7 +11,14 @@ public interface ISlaService
 
     DateTime CalculateDueAtUtc(TicketPriority priority, DateTimeOffset startAtUtc);
 
-    bool IsOverdue(Ticket ticket);
+    bool IsOverdue(Ticket ticket, DateTimeOffset? asOfUtc = null);
 
-    IQueryable<Ticket> GetOverdueTickets(IQueryable<Ticket> tickets);
+    IQueryable<Ticket> GetOverdueTickets(
+        IQueryable<Ticket> tickets,
+        DateTimeOffset? asOfUtc = null);
+
+    IQueryable<Ticket> FilterByOverdue(
+        IQueryable<Ticket> tickets,
+        bool isOverdue,
+        DateTimeOffset? asOfUtc = null);
 }

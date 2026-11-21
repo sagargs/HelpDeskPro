@@ -11,7 +11,8 @@ public interface ITicketService
         ClaimsPrincipal caller,
         CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<TicketResponse>> GetAllAsync(
+    Task<TicketListOperationResult> GetAllAsync(
+        TicketQueryParameters parameters,
         ClaimsPrincipal caller,
         CancellationToken cancellationToken);
 

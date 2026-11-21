@@ -72,11 +72,13 @@ public class TicketServiceTests
         var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var tickets = await service.GetAllAsync(
+            new TicketQueryParameters(),
             CreatePrincipal(EmployeeId, UserRole.Employee),
             CancellationToken.None);
 
-        Assert.Single(tickets);
-        Assert.Equal(101, tickets[0].Id);
+        Assert.Equal(TicketOperationStatus.Success, tickets.Status);
+        Assert.Single(tickets.Page!.Items);
+        Assert.Equal(101, tickets.Page.Items[0].Id);
     }
 
     [Fact]
@@ -102,11 +104,13 @@ public class TicketServiceTests
         var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var tickets = await service.GetAllAsync(
+            new TicketQueryParameters(),
             CreatePrincipal(AgentId, UserRole.Agent),
             CancellationToken.None);
 
-        Assert.Single(tickets);
-        Assert.Equal(101, tickets[0].Id);
+        Assert.Equal(TicketOperationStatus.Success, tickets.Status);
+        Assert.Single(tickets.Page!.Items);
+        Assert.Equal(101, tickets.Page.Items[0].Id);
     }
 
     [Fact]
@@ -132,10 +136,12 @@ public class TicketServiceTests
         var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var tickets = await service.GetAllAsync(
+            new TicketQueryParameters(),
             CreatePrincipal(AdminId, UserRole.Admin),
             CancellationToken.None);
 
-        Assert.Equal(3, tickets.Count);
+        Assert.Equal(TicketOperationStatus.Success, tickets.Status);
+        Assert.Equal(3, tickets.Page!.Items.Count);
     }
 
     [Fact]
@@ -351,11 +357,12 @@ public class TicketServiceTests
             CreatePrincipal(AdminId, UserRole.Admin),
             CancellationToken.None);
         var tickets = await service.GetAllAsync(
+            new TicketQueryParameters(),
             CreatePrincipal(OtherAgentId, UserRole.Agent),
             CancellationToken.None);
 
         Assert.Equal(TicketOperationStatus.Success, assignment.Status);
-        Assert.Contains(tickets, ticket => ticket.Id == 103);
+        Assert.Contains(tickets.Page!.Items, ticket => ticket.Id == 103);
     }
 
     [Fact]

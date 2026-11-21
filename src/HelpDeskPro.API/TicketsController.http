@@ -28,6 +28,10 @@ Content-Type: application/json
 GET {{HelpDeskPro_API_HostAddress}}/api/tickets
 Authorization: Bearer {{accessToken}}
 
+### Search, filter, sort, and paginate visible tickets
+GET {{HelpDeskPro_API_HostAddress}}/api/tickets?search=VPN&status=open&priority=high&categoryId=1&sortBy=updatedAtUtc&sortDirection=desc&pageNumber=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+
 ### List overdue tickets visible to the authenticated user
 GET {{HelpDeskPro_API_HostAddress}}/api/tickets/overdue
 Authorization: Bearer {{accessToken}}

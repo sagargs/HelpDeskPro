@@ -69,21 +69,93 @@ public sealed class TicketService(
             ToResponse(ticket));
     }
 
-    public async Task<IReadOnlyList<TicketResponse>> GetAllAsync(
+    public async Task<TicketListOperationResult> GetAllAsync(
+        TicketQueryParameters parameters,
         ClaimsPrincipal caller,
         CancellationToken cancellationToken)
     {
         if (!TryGetCaller(caller, out var userId, out var role))
         {
-            return Array.Empty<TicketResponse>();
+            return new TicketListOperationResult(TicketOperationStatus.Forbidden);
         }
 
-        var tickets = await GetAccessibleTickets(userId, role)
-            .AsNoTracking()
-            .Include(ticket => ticket.Category)
-            .ToListAsync(cancellationToken);
+        if (!IsValidTicketQuery(parameters))
+        {
+            return new TicketListOperationResult(TicketOperationStatus.InvalidRequest);
+        }
 
-        return tickets.Select(ToResponse).ToArray();
+        var asOfUtc = slaService.GetUtcNow();
+        IQueryable<Ticket> query = GetAccessibleTickets(userId, role);
+        var search = parameters.Search?.Trim();
+        if (!string.IsNullOrEmpty(search))
+        {
+            query = query.Where(ticket =>
+                ticket.Title.Contains(search)
+                || ticket.Description.Contains(search));
+        }
+
+        if (parameters.Status.HasValue)
+        {
+            query = query.Where(ticket => ticket.Status == parameters.Status.Value);
+        }
+
+        if (parameters.Priority.HasValue)
+        {
+            query = query.Where(ticket => ticket.Priority == parameters.Priority.Value);
+        }
+
+        if (parameters.CategoryId.HasValue)
+        {
+            query = query.Where(ticket => ticket.CategoryId == parameters.CategoryId.Value);
+        }
+
+        if (parameters.AssignedToUserId.HasValue)
+        {
+            query = query.Where(ticket =>
+                ticket.AssignedToUserId == parameters.AssignedToUserId.Value);
+        }
+
+        if (parameters.CreatedByUserId.HasValue)
+        {
+            query = query.Where(ticket =>
+                ticket.CreatedByUserId == parameters.CreatedByUserId.Value);
+        }
+
+        if (parameters.IsOverdue.HasValue)
+        {
+            query = slaService.FilterByOverdue(query, parameters.IsOverdue.Value, asOfUtc);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var totalPages = totalCount == 0
+            ? 0
+            : (int)(((long)totalCount + parameters.PageSize - 1) / parameters.PageSize);
+        var skip = (long)(parameters.PageNumber - 1) * parameters.PageSize;
+        IReadOnlyList<TicketResponse> items = Array.Empty<TicketResponse>();
+        if (skip < totalCount)
+        {
+            var tickets = await ApplySorting(
+                    query,
+                    parameters.SortBy,
+                    parameters.SortDirection)
+                .AsNoTracking()
+                .Include(ticket => ticket.Category)
+                .Skip((int)skip)
+                .Take(parameters.PageSize)
+                .ToListAsync(cancellationToken);
+            items = tickets.Select(ticket => ToResponse(ticket, asOfUtc)).ToArray();
+        }
+
+        return new TicketListOperationResult(
+            TicketOperationStatus.Success,
+            new PaginatedResponse<TicketResponse>(
+                items,
+                parameters.PageNumber,
+                parameters.PageSize,
+                totalCount,
+                totalPages,
+                parameters.PageNumber > 1,
+                parameters.PageNumber < totalPages));
     }
 
     public async Task<IReadOnlyList<TicketResponse>> GetOverdueAsync(
@@ -95,12 +167,15 @@ public sealed class TicketService(
             return Array.Empty<TicketResponse>();
         }
 
-        var tickets = await slaService.GetOverdueTickets(GetAccessibleTickets(userId, role))
+        var asOfUtc = slaService.GetUtcNow();
+        var tickets = await slaService.GetOverdueTickets(
+                GetAccessibleTickets(userId, role),
+                asOfUtc)
             .AsNoTracking()
             .Include(ticket => ticket.Category)
             .ToListAsync(cancellationToken);
 
-        return tickets.Select(ToResponse).ToArray();
+        return tickets.Select(ticket => ToResponse(ticket, asOfUtc)).ToArray();
     }
 
     public async Task<TicketResponse?> GetByIdAsync(
@@ -458,6 +533,57 @@ public sealed class TicketService(
             _ => dbContext.Tickets.Where(_ => false)
         };
 
+    private static bool IsValidTicketQuery(TicketQueryParameters parameters) =>
+        parameters.PageNumber >= 1
+        && parameters.PageSize is >= 1 and <= 100
+        && (!parameters.CategoryId.HasValue || parameters.CategoryId.Value > 0)
+        && (!parameters.AssignedToUserId.HasValue || parameters.AssignedToUserId.Value > 0)
+        && (!parameters.CreatedByUserId.HasValue || parameters.CreatedByUserId.Value > 0)
+        && (!parameters.Status.HasValue || Enum.IsDefined(parameters.Status.Value))
+        && (!parameters.Priority.HasValue || Enum.IsDefined(parameters.Priority.Value))
+        && (parameters.Search is null || parameters.Search.Length <= 200)
+        && IsValidSort(parameters.SortBy, parameters.SortDirection);
+
+    private static bool IsValidSort(string sortBy, string sortDirection) =>
+        !string.IsNullOrWhiteSpace(sortBy)
+        && !string.IsNullOrWhiteSpace(sortDirection)
+        && (sortBy.Equals("createdAtUtc", StringComparison.OrdinalIgnoreCase)
+            || sortBy.Equals("updatedAtUtc", StringComparison.OrdinalIgnoreCase)
+            || sortBy.Equals("dueAtUtc", StringComparison.OrdinalIgnoreCase)
+            || sortBy.Equals("priority", StringComparison.OrdinalIgnoreCase)
+            || sortBy.Equals("status", StringComparison.OrdinalIgnoreCase))
+        && (sortDirection.Equals("asc", StringComparison.OrdinalIgnoreCase)
+            || sortDirection.Equals("desc", StringComparison.OrdinalIgnoreCase));
+
+    private static IOrderedQueryable<Ticket> ApplySorting(
+        IQueryable<Ticket> query,
+        string sortBy,
+        string sortDirection)
+    {
+        var descending = sortDirection.Equals("desc", StringComparison.OrdinalIgnoreCase);
+        var orderedQuery = sortBy.ToLowerInvariant() switch
+        {
+            "createdatutc" => descending
+                ? query.OrderByDescending(ticket => ticket.CreatedAtUtc)
+                : query.OrderBy(ticket => ticket.CreatedAtUtc),
+            "updatedatutc" => descending
+                ? query.OrderByDescending(ticket => ticket.UpdatedAtUtc)
+                : query.OrderBy(ticket => ticket.UpdatedAtUtc),
+            "dueatutc" => descending
+                ? query.OrderByDescending(ticket => ticket.DueAtUtc)
+                : query.OrderBy(ticket => ticket.DueAtUtc),
+            "priority" => descending
+                ? query.OrderByDescending(ticket => ticket.Priority)
+                : query.OrderBy(ticket => ticket.Priority),
+            "status" => descending
+                ? query.OrderByDescending(ticket => ticket.Status)
+                : query.OrderBy(ticket => ticket.Status),
+            _ => throw new InvalidOperationException("Ticket sorting was not validated.")
+        };
+
+        return orderedQuery.ThenBy(ticket => ticket.Id);
+    }
+
     private IQueryable<Ticket> GetStatusAccessibleTickets(int userId, UserRole role) =>
         dbContext.Tickets.Where(ticket =>
             role == UserRole.Admin
@@ -555,6 +681,9 @@ public sealed class TicketService(
         && description.Trim().Length <= 4000;
 
     private TicketResponse ToResponse(Ticket ticket) =>
+        ToResponse(ticket, slaService.GetUtcNow());
+
+    private TicketResponse ToResponse(Ticket ticket, DateTimeOffset asOfUtc) =>
         new(
             ticket.Id,
             ticket.Title,
@@ -568,7 +697,7 @@ public sealed class TicketService(
             ToUtcOffset(ticket.CreatedAtUtc),
             ToUtcOffset(ticket.UpdatedAtUtc),
             ticket.DueAtUtc.HasValue ? ToUtcOffset(ticket.DueAtUtc.Value) : null,
-            slaService.IsOverdue(ticket));
+            slaService.IsOverdue(ticket, asOfUtc));
 
     private static TicketCommentResponse ToCommentResponse(TicketComment comment) =>
         new(

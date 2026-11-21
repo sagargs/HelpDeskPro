@@ -22,3 +22,7 @@ public sealed record TicketAssignmentOperationResult(
 public sealed record TicketCommentOperationResult(
     TicketOperationStatus Status,
     TicketCommentResponse? Comment = null);
+
+public sealed record TicketListOperationResult(
+    TicketOperationStatus Status,
+    PaginatedResponse<TicketResponse>? Page = null);

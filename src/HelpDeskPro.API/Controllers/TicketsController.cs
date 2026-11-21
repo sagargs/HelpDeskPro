@@ -39,12 +39,25 @@ public sealed class TicketsController(ITicketService ticketService) : Controller
     }
 
     [HttpGet]
-    [ProducesResponseType<IReadOnlyList<TicketResponse>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<TicketResponse>>> GetAll(
+    [ProducesResponseType<PaginatedResponse<TicketResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PaginatedResponse<TicketResponse>>> GetAll(
+        [FromQuery] TicketQueryParameters query,
         CancellationToken cancellationToken)
     {
-        var tickets = await ticketService.GetAllAsync(User, cancellationToken);
-        return Ok(tickets);
+        var result = await ticketService.GetAllAsync(query, User, cancellationToken);
+        return result.Status switch
+        {
+            TicketOperationStatus.Success when result.Page is not null => Ok(result.Page),
+            TicketOperationStatus.InvalidRequest => BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Invalid ticket query",
+                Detail = "One or more search, filter, sorting, or pagination values are invalid."
+            }),
+            TicketOperationStatus.Forbidden => Forbid(),
+            _ => throw new InvalidOperationException("Ticket listing returned an invalid result.")
+        };
     }
 
     [HttpGet("overdue")]

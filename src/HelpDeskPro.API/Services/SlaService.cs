@@ -26,7 +26,7 @@ public sealed class SlaService(TimeProvider timeProvider) : ISlaService
             .Add(GetSlaDuration(priority))
             .UtcDateTime;
 
-    public bool IsOverdue(Ticket ticket)
+    public bool IsOverdue(Ticket ticket, DateTimeOffset? asOfUtc = null)
     {
         if (!ticket.DueAtUtc.HasValue
             || ticket.Status is TicketStatus.Resolved or TicketStatus.Closed)
@@ -35,16 +35,30 @@ public sealed class SlaService(TimeProvider timeProvider) : ISlaService
         }
 
         var dueAtUtc = DateTime.SpecifyKind(ticket.DueAtUtc.Value, DateTimeKind.Utc);
-        return GetUtcNow().UtcDateTime > dueAtUtc;
+        return (asOfUtc ?? GetUtcNow()).ToUniversalTime().UtcDateTime > dueAtUtc;
     }
 
-    public IQueryable<Ticket> GetOverdueTickets(IQueryable<Ticket> tickets)
+    public IQueryable<Ticket> GetOverdueTickets(
+        IQueryable<Ticket> tickets,
+        DateTimeOffset? asOfUtc = null) =>
+        FilterByOverdue(tickets, true, asOfUtc);
+
+    public IQueryable<Ticket> FilterByOverdue(
+        IQueryable<Ticket> tickets,
+        bool isOverdue,
+        DateTimeOffset? asOfUtc = null)
     {
-        var nowUtc = GetUtcNow().UtcDateTime;
-        return tickets.Where(ticket =>
+        var nowUtc = (asOfUtc ?? GetUtcNow()).ToUniversalTime().UtcDateTime;
+        return isOverdue
+            ? tickets.Where(ticket =>
             ticket.DueAtUtc.HasValue
             && ticket.DueAtUtc.Value < nowUtc
             && ticket.Status != TicketStatus.Resolved
-            && ticket.Status != TicketStatus.Closed);
+            && ticket.Status != TicketStatus.Closed)
+            : tickets.Where(ticket =>
+                !ticket.DueAtUtc.HasValue
+                || ticket.DueAtUtc.Value >= nowUtc
+                || ticket.Status == TicketStatus.Resolved
+                || ticket.Status == TicketStatus.Closed);
     }
 }
