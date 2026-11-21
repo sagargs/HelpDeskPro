@@ -29,10 +29,17 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
             .HasConversion<int>();
 
         builder.Property(ticket => ticket.CreatedAtUtc)
-            .IsRequired();
+            .IsRequired()
+            .HasColumnType("datetime2")
+            .HasDefaultValueSql("SYSUTCDATETIME()");
 
         builder.Property(ticket => ticket.UpdatedAtUtc)
-            .IsRequired();
+            .IsRequired()
+            .HasColumnType("datetime2")
+            .HasDefaultValueSql("SYSUTCDATETIME()");
+
+        builder.Property(ticket => ticket.DueAtUtc)
+            .HasColumnType("datetime2");
 
         builder.HasOne(ticket => ticket.Category)
             .WithMany(category => category.Tickets)

@@ -23,7 +23,9 @@ public class TicketHistoryConfiguration : IEntityTypeConfiguration<TicketHistory
             .HasMaxLength(1000);
 
         builder.Property(history => history.ChangedAtUtc)
-            .IsRequired();
+            .IsRequired()
+            .HasColumnType("datetime2")
+            .HasDefaultValueSql("SYSUTCDATETIME()");
 
         builder.HasOne(history => history.Ticket)
             .WithMany(ticket => ticket.HistoryRecords)

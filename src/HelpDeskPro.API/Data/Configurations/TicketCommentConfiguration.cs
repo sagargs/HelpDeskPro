@@ -17,7 +17,9 @@ public class TicketCommentConfiguration : IEntityTypeConfiguration<TicketComment
             .HasMaxLength(4000);
 
         builder.Property(comment => comment.CreatedAtUtc)
-            .IsRequired();
+            .IsRequired()
+            .HasColumnType("datetime2")
+            .HasDefaultValueSql("SYSUTCDATETIME()");
 
         builder.HasOne(comment => comment.Ticket)
             .WithMany(ticket => ticket.Comments)

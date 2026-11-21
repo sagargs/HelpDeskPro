@@ -32,7 +32,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired();
 
         builder.Property(user => user.CreatedAtUtc)
-            .IsRequired();
+            .IsRequired()
+            .HasColumnType("datetime2")
+            .HasDefaultValueSql("SYSUTCDATETIME()");
 
         builder.HasIndex(user => user.Email)
             .IsUnique();

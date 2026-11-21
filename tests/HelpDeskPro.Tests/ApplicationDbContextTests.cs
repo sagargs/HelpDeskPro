@@ -54,6 +54,28 @@ public class ApplicationDbContextTests
             Assert.Equal(typeof(int), property.GetTypeMapping().Converter?.ProviderClrType));
     }
 
+    [Fact]
+    public void GeneratedTimestampsUseSqlServerUtcDefaults()
+    {
+        using var context = CreateContext();
+        var timestampProperties = new[]
+        {
+            GetProperty(context, typeof(User), nameof(User.CreatedAtUtc)),
+            GetProperty(context, typeof(Ticket), nameof(Ticket.CreatedAtUtc)),
+            GetProperty(context, typeof(Ticket), nameof(Ticket.UpdatedAtUtc)),
+            GetProperty(context, typeof(TicketHistory), nameof(TicketHistory.ChangedAtUtc)),
+            GetProperty(context, typeof(TicketComment), nameof(TicketComment.CreatedAtUtc))
+        };
+
+        Assert.All(timestampProperties, property =>
+        {
+            Assert.Equal("datetime2", property.GetColumnType());
+            Assert.Equal("SYSUTCDATETIME()", property.GetDefaultValueSql());
+        });
+
+        Assert.Equal("datetime2", GetProperty(context, typeof(Ticket), nameof(Ticket.DueAtUtc)).GetColumnType());
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
