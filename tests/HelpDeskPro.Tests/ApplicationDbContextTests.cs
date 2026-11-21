@@ -1,6 +1,7 @@
 using HelpDeskPro.API.Data;
 using HelpDeskPro.API.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace HelpDeskPro.Tests;
@@ -17,6 +18,64 @@ public class ApplicationDbContextTests
         Assert.NotNull(context.Model.FindEntityType(typeof(Ticket)));
         Assert.NotNull(context.Model.FindEntityType(typeof(TicketHistory)));
         Assert.NotNull(context.Model.FindEntityType(typeof(TicketComment)));
+    }
+
+    [Fact]
+    public void ModelContainsFiveStableDefaultCategorySeeds()
+    {
+        using var context = CreateContext();
+
+        var designTimeModel = context.GetService<IDesignTimeModel>().Model;
+        var categoryEntity = designTimeModel.FindEntityType(typeof(Category))!;
+        var seedData = categoryEntity.GetSeedData();
+        var expectedCategories = new[]
+        {
+            new Category
+            {
+                Id = 2,
+                Name = "Hardware",
+                Description = "Computer, laptop, printer and other physical equipment issues.",
+                IsActive = true
+            },
+            new Category
+            {
+                Id = 3,
+                Name = "Software",
+                Description = "Software installation, application errors and licensing issues.",
+                IsActive = true
+            },
+            new Category
+            {
+                Id = 4,
+                Name = "Network",
+                Description = "Internet, VPN, Wi-Fi and network connectivity issues.",
+                IsActive = true
+            },
+            new Category
+            {
+                Id = 5,
+                Name = "Access Management",
+                Description = "User accounts, permissions, password and access-related issues.",
+                IsActive = true
+            },
+            new Category
+            {
+                Id = 6,
+                Name = "Other",
+                Description = "IT support issues that do not fit other categories.",
+                IsActive = true
+            }
+        };
+
+        Assert.Equal(expectedCategories.Length, seedData.Count());
+
+        foreach (var expected in expectedCategories)
+        {
+            var seed = seedData.Single(row => (int)row[nameof(Category.Id)]! == expected.Id);
+            Assert.Equal(expected.Name, seed[nameof(Category.Name)]);
+            Assert.Equal(expected.Description, seed[nameof(Category.Description)]);
+            Assert.Equal(expected.IsActive, seed[nameof(Category.IsActive)]);
+        }
     }
 
     [Fact]

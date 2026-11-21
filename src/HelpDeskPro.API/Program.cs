@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using HelpDeskPro.API.Configuration;
 using HelpDeskPro.API.Data;
 using HelpDeskPro.API.Extensions;
@@ -11,7 +13,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+        options.JsonSerializerOptions.Converters.Add(
+            new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false)));
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -27,6 +32,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddSingleton<IConfigureOptions<JwtBearerOptions>, JwtBearerOptionsSetup>();
 builder.Services.AddHelpDeskAuthorization();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ITicketService, TicketService>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi(options =>

@@ -49,6 +49,43 @@ namespace HelpDeskPro.API.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Categories", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 2,
+                            Description = "Computer, laptop, printer and other physical equipment issues.",
+                            IsActive = true,
+                            Name = "Hardware"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Description = "Software installation, application errors and licensing issues.",
+                            IsActive = true,
+                            Name = "Software"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Description = "Internet, VPN, Wi-Fi and network connectivity issues.",
+                            IsActive = true,
+                            Name = "Network"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Description = "User accounts, permissions, password and access-related issues.",
+                            IsActive = true,
+                            Name = "Access Management"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Description = "IT support issues that do not fit other categories.",
+                            IsActive = true,
+                            Name = "Other"
+                        });
                 });
 
             modelBuilder.Entity("HelpDeskPro.API.Models.Ticket", b =>

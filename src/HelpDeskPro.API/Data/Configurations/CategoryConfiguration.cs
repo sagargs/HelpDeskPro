@@ -25,5 +25,42 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
 
         builder.HasIndex(category => category.Name)
             .IsUnique();
+
+        builder.HasData(
+            new Category
+            {
+                Id = 2,
+                Name = "Hardware",
+                Description = "Computer, laptop, printer and other physical equipment issues.",
+                IsActive = true
+            },
+            new Category
+            {
+                Id = 3,
+                Name = "Software",
+                Description = "Software installation, application errors and licensing issues.",
+                IsActive = true
+            },
+            new Category
+            {
+                Id = 4,
+                Name = "Network",
+                Description = "Internet, VPN, Wi-Fi and network connectivity issues.",
+                IsActive = true
+            },
+            new Category
+            {
+                Id = 5,
+                Name = "Access Management",
+                Description = "User accounts, permissions, password and access-related issues.",
+                IsActive = true
+            },
+            new Category
+            {
+                Id = 6,
+                Name = "Other",
+                Description = "IT support issues that do not fit other categories.",
+                IsActive = true
+            });
     }
 }

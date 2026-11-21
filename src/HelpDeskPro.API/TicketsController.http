@@ -1,0 +1,39 @@
+@HelpDeskPro_API_HostAddress = http://localhost:5239
+@accessToken = replace-with-a-valid-jwt
+@ticketId = 1
+
+### Create a ticket
+POST {{HelpDeskPro_API_HostAddress}}/api/tickets
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "Cannot connect to VPN",
+  "description": "The VPN client fails to connect from my workstation.",
+  "categoryId": 1,
+  "priority": "high"
+}
+
+### List tickets visible to the authenticated user
+GET {{HelpDeskPro_API_HostAddress}}/api/tickets
+Authorization: Bearer {{accessToken}}
+
+### Get a ticket visible to the authenticated user
+GET {{HelpDeskPro_API_HostAddress}}/api/tickets/{{ticketId}}
+Authorization: Bearer {{accessToken}}
+
+### Update an editable ticket
+PUT {{HelpDeskPro_API_HostAddress}}/api/tickets/{{ticketId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "VPN connection failure",
+  "description": "The VPN client still fails to connect.",
+  "categoryId": 1,
+  "priority": "high"
+}
+
+### Delete a ticket (Admin only)
+DELETE {{HelpDeskPro_API_HostAddress}}/api/tickets/{{ticketId}}
+Authorization: Bearer {{accessToken}}
