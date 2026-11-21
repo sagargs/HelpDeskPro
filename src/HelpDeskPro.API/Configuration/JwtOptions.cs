@@ -4,6 +4,8 @@ public sealed class JwtOptions
 {
     public const string SectionName = "Jwt";
 
+    public const string RoleClaimType = "role";
+
     public string SigningKey { get; set; } = string.Empty;
 
     public string Issuer { get; set; } = string.Empty;

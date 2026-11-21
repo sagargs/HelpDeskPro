@@ -1,5 +1,6 @@
 using HelpDeskPro.API.DTOs;
 using HelpDeskPro.API.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HelpDeskPro.API.Controllers;
@@ -9,6 +10,7 @@ namespace HelpDeskPro.API.Controllers;
 public sealed class AuthController(IAuthService authService) : ControllerBase
 {
     [HttpPost("register")]
+    [AllowAnonymous]
     [ProducesResponseType<AuthenticationResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<AuthenticationResponse>> Register(
@@ -30,6 +32,7 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
     }
 
     [HttpPost("login")]
+    [AllowAnonymous]
     [ProducesResponseType<AuthenticationResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<AuthenticationResponse>> Login(

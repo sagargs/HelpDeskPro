@@ -96,7 +96,7 @@ public sealed class AuthService(
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString(CultureInfo.InvariantCulture)),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
-            new Claim("role", user.Role.ToString())
+            new Claim(JwtOptions.RoleClaimType, user.Role.ToString())
         };
 
         var token = new JwtSecurityToken(
