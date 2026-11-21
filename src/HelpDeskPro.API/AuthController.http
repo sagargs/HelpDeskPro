@@ -1,0 +1,20 @@
+@HelpDeskPro_API_HostAddress = http://localhost:5239
+
+### Register an employee and receive an access token
+POST {{HelpDeskPro_API_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "Taylor Employee",
+  "email": "taylor@example.com",
+  "password": "StrongPassword123!"
+}
+
+### Log in
+POST {{HelpDeskPro_API_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "taylor@example.com",
+  "password": "StrongPassword123!"
+}
