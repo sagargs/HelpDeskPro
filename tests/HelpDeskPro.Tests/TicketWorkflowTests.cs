@@ -34,7 +34,7 @@ public class TicketWorkflowTests
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
         await SetTicketStatusAsync(dbContext, 101, currentStatus);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.UpdateStatusAsync(
             101,
@@ -73,7 +73,7 @@ public class TicketWorkflowTests
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
         await SetTicketStatusAsync(dbContext, 101, currentStatus);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.UpdateStatusAsync(
             101,
@@ -91,7 +91,7 @@ public class TicketWorkflowTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.UpdateStatusAsync(
             101,
@@ -108,7 +108,7 @@ public class TicketWorkflowTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.UpdateStatusAsync(
             101,
@@ -126,7 +126,7 @@ public class TicketWorkflowTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.UpdateStatusAsync(
             103,
@@ -143,7 +143,7 @@ public class TicketWorkflowTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.UpdateStatusAsync(
             102,
@@ -158,7 +158,7 @@ public class TicketWorkflowTests
     public async Task NonexistentTicketCannotChangeStatus()
     {
         await using var dbContext = await CreateDbContextAsync();
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.UpdateStatusAsync(
             999,
@@ -174,7 +174,7 @@ public class TicketWorkflowTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.UpdateStatusAsync(
             101,
@@ -191,7 +191,7 @@ public class TicketWorkflowTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
         var admin = CreatePrincipal(AdminId, UserRole.Admin);
 
         await service.AssignAsync(
@@ -232,7 +232,7 @@ public class TicketWorkflowTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.UpdateAsync(
             101,
@@ -261,7 +261,7 @@ public class TicketWorkflowTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
         var caller = CreatePrincipal(EmployeeId, UserRole.Employee);
 
         var created = await service.CreateCommentAsync(
@@ -289,7 +289,7 @@ public class TicketWorkflowTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
         var caller = CreatePrincipal(userId, role);
 
         var created = await service.CreateCommentAsync(
@@ -314,7 +314,7 @@ public class TicketWorkflowTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
         var caller = CreatePrincipal(userId, role);
 
         var created = await service.CreateCommentAsync(
@@ -336,7 +336,7 @@ public class TicketWorkflowTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.CreateCommentAsync(
             101,
@@ -353,7 +353,7 @@ public class TicketWorkflowTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.CreateCommentAsync(
             101,
@@ -374,7 +374,7 @@ public class TicketWorkflowTests
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
         await SeedHistoryAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var history = await service.GetHistoryAsync(
             101,
@@ -397,7 +397,7 @@ public class TicketWorkflowTests
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
         await SeedHistoryAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var history = await service.GetHistoryAsync(
             ticketId,

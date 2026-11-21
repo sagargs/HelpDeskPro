@@ -15,6 +15,10 @@ public interface ITicketService
         ClaimsPrincipal caller,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<TicketResponse>> GetOverdueAsync(
+        ClaimsPrincipal caller,
+        CancellationToken cancellationToken);
+
     Task<TicketResponse?> GetByIdAsync(
         int id,
         ClaimsPrincipal caller,

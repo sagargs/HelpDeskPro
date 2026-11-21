@@ -47,6 +47,15 @@ public sealed class TicketsController(ITicketService ticketService) : Controller
         return Ok(tickets);
     }
 
+    [HttpGet("overdue")]
+    [ProducesResponseType<IReadOnlyList<TicketResponse>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<TicketResponse>>> GetOverdue(
+        CancellationToken cancellationToken)
+    {
+        var tickets = await ticketService.GetOverdueAsync(User, cancellationToken);
+        return Ok(tickets);
+    }
+
     [HttpGet("{id:int}")]
     [ProducesResponseType<TicketResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

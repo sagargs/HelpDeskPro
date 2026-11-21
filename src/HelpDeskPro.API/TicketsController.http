@@ -28,6 +28,10 @@ Content-Type: application/json
 GET {{HelpDeskPro_API_HostAddress}}/api/tickets
 Authorization: Bearer {{accessToken}}
 
+### List overdue tickets visible to the authenticated user
+GET {{HelpDeskPro_API_HostAddress}}/api/tickets/overdue
+Authorization: Bearer {{accessToken}}
+
 ### Get a ticket visible to the authenticated user
 GET {{HelpDeskPro_API_HostAddress}}/api/tickets/{{ticketId}}
 Authorization: Bearer {{accessToken}}

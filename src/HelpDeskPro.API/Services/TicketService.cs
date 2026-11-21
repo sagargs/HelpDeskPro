@@ -12,7 +12,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HelpDeskPro.API.Services;
 
-public sealed class TicketService(ApplicationDbContext dbContext) : ITicketService
+public sealed class TicketService(
+    ApplicationDbContext dbContext,
+    ISlaService slaService) : ITicketService
 {
     public async Task<TicketOperationResult> CreateAsync(
         CreateTicketRequest request,
@@ -39,7 +41,7 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
             return new TicketOperationResult(TicketOperationStatus.InvalidRequest);
         }
 
-        var now = DateTime.UtcNow;
+        var now = slaService.GetUtcNow();
         var ticket = new Ticket
         {
             Title = request.Title.Trim(),
@@ -49,8 +51,9 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
             CreatedByUserId = userId,
             Priority = request.Priority,
             Status = TicketStatus.Open,
-            CreatedAtUtc = now,
-            UpdatedAtUtc = now
+            CreatedAtUtc = now.UtcDateTime,
+            UpdatedAtUtc = now.UtcDateTime,
+            DueAtUtc = slaService.CalculateDueAtUtc(request.Priority, now)
         };
 
         dbContext.Tickets.Add(ticket);
@@ -76,6 +79,23 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
         }
 
         var tickets = await GetAccessibleTickets(userId, role)
+            .AsNoTracking()
+            .Include(ticket => ticket.Category)
+            .ToListAsync(cancellationToken);
+
+        return tickets.Select(ToResponse).ToArray();
+    }
+
+    public async Task<IReadOnlyList<TicketResponse>> GetOverdueAsync(
+        ClaimsPrincipal caller,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCaller(caller, out var userId, out var role))
+        {
+            return Array.Empty<TicketResponse>();
+        }
+
+        var tickets = await slaService.GetOverdueTickets(GetAccessibleTickets(userId, role))
             .AsNoTracking()
             .Include(ticket => ticket.Category)
             .ToListAsync(cancellationToken);
@@ -158,12 +178,19 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
             changedFields.Add(nameof(ticket.Priority));
         }
 
+        var priorityChanged = ticket.Priority != request.Priority;
+        var now = slaService.GetUtcNow();
         ticket.Title = title;
         ticket.Description = description;
         ticket.CategoryId = category.Id;
         ticket.Category = category;
         ticket.Priority = request.Priority;
-        ticket.UpdatedAtUtc = DateTime.UtcNow;
+        if (priorityChanged)
+        {
+            ticket.DueAtUtc = slaService.CalculateDueAtUtc(request.Priority, now);
+        }
+
+        ticket.UpdatedAtUtc = now.UtcDateTime;
         if (changedFields.Count > 0)
         {
             AddHistory(
@@ -256,7 +283,7 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
         if (previousAgentId != agent?.Id)
         {
             ticket.AssignedToUserId = agent?.Id;
-            ticket.UpdatedAtUtc = DateTime.UtcNow;
+            ticket.UpdatedAtUtc = slaService.GetUtcNow().UtcDateTime;
             AddHistory(
                 ticket,
                 userId,
@@ -305,7 +332,7 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
 
         var oldStatus = ticket.Status;
         ticket.Status = request.Status;
-        ticket.UpdatedAtUtc = DateTime.UtcNow;
+        ticket.UpdatedAtUtc = slaService.GetUtcNow().UtcDateTime;
         AddHistory(
             ticket,
             userId,
@@ -356,7 +383,7 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
             User = author,
             UserId = userId,
             CommentText = request.CommentText.Trim(),
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = slaService.GetUtcNow().UtcDateTime
         };
         dbContext.TicketComments.Add(comment);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -459,7 +486,7 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
             OldStatus = oldStatus,
             NewStatus = newStatus,
             Action = action,
-            ChangedAtUtc = DateTime.UtcNow
+            ChangedAtUtc = slaService.GetUtcNow().UtcDateTime
         });
 
     private static bool IsAllowedStatusTransition(TicketStatus current, TicketStatus next) =>
@@ -527,7 +554,7 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
         && !string.IsNullOrWhiteSpace(description)
         && description.Trim().Length <= 4000;
 
-    private static TicketResponse ToResponse(Ticket ticket) =>
+    private TicketResponse ToResponse(Ticket ticket) =>
         new(
             ticket.Id,
             ticket.Title,
@@ -540,7 +567,8 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
             ticket.Status,
             ToUtcOffset(ticket.CreatedAtUtc),
             ToUtcOffset(ticket.UpdatedAtUtc),
-            ticket.DueAtUtc.HasValue ? ToUtcOffset(ticket.DueAtUtc.Value) : null);
+            ticket.DueAtUtc.HasValue ? ToUtcOffset(ticket.DueAtUtc.Value) : null,
+            slaService.IsOverdue(ticket));
 
     private static TicketCommentResponse ToCommentResponse(TicketComment comment) =>
         new(

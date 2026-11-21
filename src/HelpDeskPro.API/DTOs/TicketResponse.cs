@@ -15,4 +15,5 @@ public sealed record TicketResponse(
     TicketStatus Status,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
-    DateTimeOffset? DueAtUtc);
+    DateTimeOffset? DueAtUtc,
+    bool IsOverdue);

@@ -26,7 +26,7 @@ public class TicketServiceTests
     public async Task EmployeeCanCreateTicketOwnedByTheirAuthenticatedIdentity()
     {
         await using var dbContext = await CreateDbContextAsync();
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.CreateAsync(
             CreateRequest(),
@@ -54,7 +54,7 @@ public class TicketServiceTests
     public async Task NewTicketAlwaysStartsOpen()
     {
         await using var dbContext = await CreateDbContextAsync();
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         await service.CreateAsync(
             CreateRequest(),
@@ -69,7 +69,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var tickets = await service.GetAllAsync(
             CreatePrincipal(EmployeeId, UserRole.Employee),
@@ -84,7 +84,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var ticket = await service.GetByIdAsync(
             102,
@@ -99,7 +99,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var tickets = await service.GetAllAsync(
             CreatePrincipal(AgentId, UserRole.Agent),
@@ -114,7 +114,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var ticket = await service.GetByIdAsync(
             102,
@@ -129,7 +129,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var tickets = await service.GetAllAsync(
             CreatePrincipal(AdminId, UserRole.Admin),
@@ -143,7 +143,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.UpdateAsync(
             102,
@@ -161,7 +161,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
         var userId = role == UserRole.Employee ? EmployeeId : AgentId;
 
         var result = await service.DeleteAsync(
@@ -178,7 +178,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.DeleteAsync(
             101,
@@ -193,7 +193,7 @@ public class TicketServiceTests
     public async Task AdminGetsNotFoundWhenDeletingMissingTicket()
     {
         await using var dbContext = await CreateDbContextAsync();
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.DeleteAsync(
             999,
@@ -208,7 +208,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.AssignAsync(
             103,
@@ -233,7 +233,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.AssignAsync(
             101,
@@ -251,7 +251,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.AssignAsync(
             101,
@@ -272,7 +272,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.AssignAsync(
             103,
@@ -294,7 +294,7 @@ public class TicketServiceTests
         await SeedTicketsAsync(dbContext);
         dbContext.Users.Add(CreateUser(6, UserRole.Agent, isActive: false));
         await dbContext.SaveChangesAsync();
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.AssignAsync(
             103,
@@ -311,7 +311,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.AssignAsync(
             103,
@@ -327,7 +327,7 @@ public class TicketServiceTests
     public async Task AdminGetsNotFoundForNonexistentTicket()
     {
         await using var dbContext = await CreateDbContextAsync();
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.AssignAsync(
             999,
@@ -343,7 +343,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var assignment = await service.AssignAsync(
             103,
@@ -363,7 +363,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         await service.AssignAsync(
             101,
@@ -397,7 +397,7 @@ public class TicketServiceTests
     public async Task CreateRejectsInvalidCategoryAndPriority()
     {
         await using var dbContext = await CreateDbContextAsync();
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
         var caller = CreatePrincipal(EmployeeId, UserRole.Employee);
 
         var invalidCategoryResult = await service.CreateAsync(
@@ -419,7 +419,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
         const string body = """
             {
               "title": "Updated title",
@@ -455,7 +455,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
         const string body = """
             {
               "title": "Ticket 101",
@@ -488,7 +488,7 @@ public class TicketServiceTests
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.UpdateAsync(
             102,
@@ -507,7 +507,7 @@ public class TicketServiceTests
         var ticket = await dbContext.Tickets.SingleAsync(item => item.Id == 101);
         ticket.UpdatedAtUtc = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         await dbContext.SaveChangesAsync();
-        var service = new TicketService(dbContext);
+        var service = new TicketService(dbContext, new SlaService(TimeProvider.System));
 
         var result = await service.UpdateAsync(
             101,
