@@ -4,3 +4,18 @@ GET {{HelpDeskPro.API_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###
+
+@accessToken = replace-with-a-valid-jwt
+
+### Get role-scoped dashboard summary
+GET {{HelpDeskPro.API_HostAddress}}/api/dashboard/summary
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Check API liveness (anonymous)
+GET {{HelpDeskPro.API_HostAddress}}/health/live
+Accept: application/json
+
+### Check API and SQL Server readiness (anonymous)
+GET {{HelpDeskPro.API_HostAddress}}/health/ready
+Accept: application/json
