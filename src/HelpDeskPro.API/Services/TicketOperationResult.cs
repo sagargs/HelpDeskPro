@@ -18,3 +18,7 @@ public sealed record TicketOperationResult(
 public sealed record TicketAssignmentOperationResult(
     TicketOperationStatus Status,
     TicketAssignmentResponse? Assignment = null);
+
+public sealed record TicketCommentOperationResult(
+    TicketOperationStatus Status,
+    TicketCommentResponse? Comment = null);

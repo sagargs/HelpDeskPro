@@ -19,7 +19,4 @@ public sealed record UpdateTicketRequest
 
     [EnumDataType(typeof(TicketPriority))]
     public required TicketPriority Priority { get; init; }
-
-    [EnumDataType(typeof(TicketStatus))]
-    public TicketStatus? Status { get; init; }
 }

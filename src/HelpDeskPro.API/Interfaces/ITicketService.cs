@@ -36,4 +36,26 @@ public interface ITicketService
         AssignTicketRequest request,
         ClaimsPrincipal caller,
         CancellationToken cancellationToken);
+
+    Task<TicketOperationResult> UpdateStatusAsync(
+        int id,
+        UpdateTicketStatusRequest request,
+        ClaimsPrincipal caller,
+        CancellationToken cancellationToken);
+
+    Task<TicketCommentOperationResult> CreateCommentAsync(
+        int id,
+        CreateTicketCommentRequest request,
+        ClaimsPrincipal caller,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<TicketCommentResponse>?> GetCommentsAsync(
+        int id,
+        ClaimsPrincipal caller,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<TicketHistoryResponse>?> GetHistoryAsync(
+        int id,
+        ClaimsPrincipal caller,
+        CancellationToken cancellationToken);
 }

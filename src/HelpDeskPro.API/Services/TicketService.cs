@@ -54,6 +54,11 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
         };
 
         dbContext.Tickets.Add(ticket);
+        AddHistory(
+            ticket,
+            userId,
+            "Ticket created with status Open.",
+            newStatus: TicketStatus.Open);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return new TicketOperationResult(
@@ -115,14 +120,8 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
             return new TicketOperationResult(TicketOperationStatus.NotFound);
         }
 
-        if (role == UserRole.Employee && request.Status.HasValue)
-        {
-            return new TicketOperationResult(TicketOperationStatus.Forbidden);
-        }
-
         if (!IsValidTicketText(request.Title, request.Description)
-            || !Enum.IsDefined(request.Priority)
-            || (request.Status.HasValue && !Enum.IsDefined(request.Status.Value)))
+            || !Enum.IsDefined(request.Priority))
         {
             return new TicketOperationResult(TicketOperationStatus.InvalidRequest);
         }
@@ -136,17 +135,43 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
             return new TicketOperationResult(TicketOperationStatus.InvalidRequest);
         }
 
-        ticket.Title = request.Title.Trim();
-        ticket.Description = request.Description.Trim();
+        var title = request.Title.Trim();
+        var description = request.Description.Trim();
+        var changedFields = new List<string>();
+        if (!string.Equals(ticket.Title, title, StringComparison.Ordinal))
+        {
+            changedFields.Add(nameof(ticket.Title));
+        }
+
+        if (!string.Equals(ticket.Description, description, StringComparison.Ordinal))
+        {
+            changedFields.Add(nameof(ticket.Description));
+        }
+
+        if (ticket.CategoryId != category.Id)
+        {
+            changedFields.Add(nameof(ticket.CategoryId));
+        }
+
+        if (ticket.Priority != request.Priority)
+        {
+            changedFields.Add(nameof(ticket.Priority));
+        }
+
+        ticket.Title = title;
+        ticket.Description = description;
         ticket.CategoryId = category.Id;
         ticket.Category = category;
         ticket.Priority = request.Priority;
-        if (request.Status.HasValue)
+        ticket.UpdatedAtUtc = DateTime.UtcNow;
+        if (changedFields.Count > 0)
         {
-            ticket.Status = request.Status.Value;
+            AddHistory(
+                ticket,
+                userId,
+                $"Ticket updated. Changed fields: {string.Join(", ", changedFields)}.");
         }
 
-        ticket.UpdatedAtUtc = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return new TicketOperationResult(
@@ -191,7 +216,7 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
         ClaimsPrincipal caller,
         CancellationToken cancellationToken)
     {
-        if (!TryGetCaller(caller, out _, out var role)
+        if (!TryGetCaller(caller, out var userId, out var role)
             || role != UserRole.Admin)
         {
             return new TicketAssignmentOperationResult(TicketOperationStatus.Forbidden);
@@ -227,9 +252,17 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
             }
         }
 
-        ticket.AssignedToUserId = agent?.Id;
-        ticket.UpdatedAtUtc = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var previousAgentId = ticket.AssignedToUserId;
+        if (previousAgentId != agent?.Id)
+        {
+            ticket.AssignedToUserId = agent?.Id;
+            ticket.UpdatedAtUtc = DateTime.UtcNow;
+            AddHistory(
+                ticket,
+                userId,
+                GetAssignmentAction(previousAgentId, agent?.Id));
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
 
         return new TicketAssignmentOperationResult(
             TicketOperationStatus.Success,
@@ -240,6 +273,155 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
                 agent?.FullName));
     }
 
+    public async Task<TicketOperationResult> UpdateStatusAsync(
+        int id,
+        UpdateTicketStatusRequest request,
+        ClaimsPrincipal caller,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCaller(caller, out var userId, out var role)
+            || role is not (UserRole.Admin or UserRole.Agent))
+        {
+            return new TicketOperationResult(TicketOperationStatus.Forbidden);
+        }
+
+        if (!Enum.IsDefined(request.Status))
+        {
+            return new TicketOperationResult(TicketOperationStatus.InvalidRequest);
+        }
+
+        var ticket = await GetStatusAccessibleTickets(userId, role)
+            .Include(item => item.Category)
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (ticket is null)
+        {
+            return new TicketOperationResult(TicketOperationStatus.NotFound);
+        }
+
+        if (!IsAllowedStatusTransition(ticket.Status, request.Status))
+        {
+            return new TicketOperationResult(TicketOperationStatus.InvalidRequest);
+        }
+
+        var oldStatus = ticket.Status;
+        ticket.Status = request.Status;
+        ticket.UpdatedAtUtc = DateTime.UtcNow;
+        AddHistory(
+            ticket,
+            userId,
+            $"Ticket status changed from {oldStatus} to {request.Status}.",
+            oldStatus,
+            request.Status);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return new TicketOperationResult(
+            TicketOperationStatus.Success,
+            ToResponse(ticket));
+    }
+
+    public async Task<TicketCommentOperationResult> CreateCommentAsync(
+        int id,
+        CreateTicketCommentRequest request,
+        ClaimsPrincipal caller,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCaller(caller, out var userId, out var role))
+        {
+            return new TicketCommentOperationResult(TicketOperationStatus.Forbidden);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CommentText)
+            || request.CommentText.Trim().Length > 4000)
+        {
+            return new TicketCommentOperationResult(TicketOperationStatus.InvalidRequest);
+        }
+
+        var ticket = await GetParticipatingTickets(id, userId, role)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (ticket is null)
+        {
+            return new TicketCommentOperationResult(TicketOperationStatus.NotFound);
+        }
+
+        var author = await dbContext.Users
+            .SingleOrDefaultAsync(user => user.Id == userId, cancellationToken);
+        if (author is null)
+        {
+            return new TicketCommentOperationResult(TicketOperationStatus.Forbidden);
+        }
+
+        var comment = new TicketComment
+        {
+            Ticket = ticket,
+            User = author,
+            UserId = userId,
+            CommentText = request.CommentText.Trim(),
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        dbContext.TicketComments.Add(comment);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return new TicketCommentOperationResult(
+            TicketOperationStatus.Success,
+            ToCommentResponse(comment));
+    }
+
+    public async Task<IReadOnlyList<TicketCommentResponse>?> GetCommentsAsync(
+        int id,
+        ClaimsPrincipal caller,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCaller(caller, out var userId, out var role))
+        {
+            return null;
+        }
+
+        var ticketExists = await GetParticipatingTickets(id, userId, role)
+            .AnyAsync(cancellationToken);
+        if (!ticketExists)
+        {
+            return null;
+        }
+
+        var comments = await dbContext.TicketComments
+            .AsNoTracking()
+            .Include(comment => comment.User)
+            .Where(comment => comment.TicketId == id)
+            .OrderBy(comment => comment.CreatedAtUtc)
+            .ThenBy(comment => comment.Id)
+            .ToListAsync(cancellationToken);
+
+        return comments.Select(ToCommentResponse).ToArray();
+    }
+
+    public async Task<IReadOnlyList<TicketHistoryResponse>?> GetHistoryAsync(
+        int id,
+        ClaimsPrincipal caller,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCaller(caller, out var userId, out var role))
+        {
+            return null;
+        }
+
+        var ticketExists = await GetParticipatingTickets(id, userId, role)
+            .AnyAsync(cancellationToken);
+        if (!ticketExists)
+        {
+            return null;
+        }
+
+        var history = await dbContext.TicketHistories
+            .AsNoTracking()
+            .Include(item => item.ChangedByUser)
+            .Where(item => item.TicketId == id)
+            .OrderBy(item => item.ChangedAtUtc)
+            .ThenBy(item => item.Id)
+            .ToListAsync(cancellationToken);
+
+        return history.Select(ToHistoryResponse).ToArray();
+    }
+
     private IQueryable<Ticket> GetAccessibleTickets(int userId, UserRole role) =>
         role switch
         {
@@ -247,6 +429,56 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
             UserRole.Agent => dbContext.Tickets.Where(ticket => ticket.AssignedToUserId == userId),
             UserRole.Employee => dbContext.Tickets.Where(ticket => ticket.CreatedByUserId == userId),
             _ => dbContext.Tickets.Where(_ => false)
+        };
+
+    private IQueryable<Ticket> GetStatusAccessibleTickets(int userId, UserRole role) =>
+        dbContext.Tickets.Where(ticket =>
+            role == UserRole.Admin
+            || (role == UserRole.Agent && ticket.AssignedToUserId == userId));
+
+    private IQueryable<Ticket> GetParticipatingTickets(
+        int id,
+        int userId,
+        UserRole role) =>
+        dbContext.Tickets.Where(ticket =>
+            ticket.Id == id
+            && (role == UserRole.Admin
+                || ticket.CreatedByUserId == userId
+                || (role == UserRole.Agent && ticket.AssignedToUserId == userId)));
+
+    private void AddHistory(
+        Ticket ticket,
+        int actorUserId,
+        string action,
+        TicketStatus? oldStatus = null,
+        TicketStatus? newStatus = null) =>
+        dbContext.TicketHistories.Add(new TicketHistory
+        {
+            Ticket = ticket,
+            ChangedByUserId = actorUserId,
+            OldStatus = oldStatus,
+            NewStatus = newStatus,
+            Action = action,
+            ChangedAtUtc = DateTime.UtcNow
+        });
+
+    private static bool IsAllowedStatusTransition(TicketStatus current, TicketStatus next) =>
+        current switch
+        {
+            TicketStatus.Open => next == TicketStatus.InProgress,
+            TicketStatus.InProgress => next == TicketStatus.Resolved,
+            TicketStatus.Resolved => next is TicketStatus.InProgress or TicketStatus.Closed,
+            _ => false
+        };
+
+    private static string GetAssignmentAction(int? previousAgentId, int? newAgentId) =>
+        (previousAgentId, newAgentId) switch
+        {
+            (null, int assignedId) => $"Ticket assigned to Agent user {assignedId}.",
+            (int unassignedId, null) => $"Ticket unassigned from Agent user {unassignedId}.",
+            (int oldAgentId, int newAssignedId) =>
+                $"Ticket reassigned from Agent user {oldAgentId} to Agent user {newAssignedId}.",
+            _ => throw new InvalidOperationException("The assignment did not change.")
         };
 
     private static bool TryGetCaller(
@@ -309,6 +541,26 @@ public sealed class TicketService(ApplicationDbContext dbContext) : ITicketServi
             ToUtcOffset(ticket.CreatedAtUtc),
             ToUtcOffset(ticket.UpdatedAtUtc),
             ticket.DueAtUtc.HasValue ? ToUtcOffset(ticket.DueAtUtc.Value) : null);
+
+    private static TicketCommentResponse ToCommentResponse(TicketComment comment) =>
+        new(
+            comment.Id,
+            comment.TicketId,
+            comment.UserId,
+            comment.User.FullName,
+            comment.CommentText,
+            ToUtcOffset(comment.CreatedAtUtc));
+
+    private static TicketHistoryResponse ToHistoryResponse(TicketHistory history) =>
+        new(
+            history.Id,
+            history.TicketId,
+            history.ChangedByUserId,
+            history.ChangedByUser.FullName,
+            history.OldStatus,
+            history.NewStatus,
+            history.Action,
+            ToUtcOffset(history.ChangedAtUtc));
 
     private static DateTimeOffset ToUtcOffset(DateTime value) =>
         new(DateTime.SpecifyKind(value, DateTimeKind.Utc));

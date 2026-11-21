@@ -3,6 +3,15 @@
 @ticketId = 1
 @agentUserId = 2
 
+### Change ticket status (Admin or assigned Agent; only allowed transitions succeed)
+PUT {{HelpDeskPro_API_HostAddress}}/api/tickets/{{ticketId}}/status
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "status": "inProgress"
+}
+
 ### Create a ticket
 POST {{HelpDeskPro_API_HostAddress}}/api/tickets
 Authorization: Bearer {{accessToken}}
@@ -52,6 +61,23 @@ Content-Type: application/json
 {
   "agentUserId": null
 }
+
+### Add a ticket comment (creator, assigned Agent, or Admin)
+POST {{HelpDeskPro_API_HostAddress}}/api/tickets/{{ticketId}}/comments
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "commentText": "The troubleshooting steps are underway."
+}
+
+### List ticket comments (creator, assigned Agent, or Admin)
+GET {{HelpDeskPro_API_HostAddress}}/api/tickets/{{ticketId}}/comments
+Authorization: Bearer {{accessToken}}
+
+### View ticket audit history (creator, assigned Agent, or Admin)
+GET {{HelpDeskPro_API_HostAddress}}/api/tickets/{{ticketId}}/history
+Authorization: Bearer {{accessToken}}
 
 ### Delete a ticket (Admin only)
 DELETE {{HelpDeskPro_API_HostAddress}}/api/tickets/{{ticketId}}

@@ -41,6 +41,13 @@ public class TicketServiceTests
         Assert.Equal(DateTimeKind.Utc, ticket.CreatedAtUtc.Kind);
         Assert.Equal(DateTimeKind.Utc, ticket.UpdatedAtUtc.Kind);
         Assert.Equal(ticket.CreatedAtUtc, ticket.UpdatedAtUtc);
+
+        var history = await dbContext.TicketHistories.SingleAsync();
+        Assert.Equal(EmployeeId, history.ChangedByUserId);
+        Assert.Null(history.OldStatus);
+        Assert.Equal(TicketStatus.Open, history.NewStatus);
+        Assert.Equal("Ticket created with status Open.", history.Action);
+        Assert.Equal(DateTimeKind.Utc, history.ChangedAtUtc.Kind);
     }
 
     [Fact]
@@ -444,19 +451,26 @@ public class TicketServiceTests
     }
 
     [Fact]
-    public async Task EmployeeCannotChangeTicketStatus()
+    public async Task GeneralUpdateCannotChangeTicketStatusEvenIfBodyContainsStatus()
     {
         await using var dbContext = await CreateDbContextAsync();
         await SeedTicketsAsync(dbContext);
         var service = new TicketService(dbContext);
-        var request = new UpdateTicketRequest
-        {
-            Title = "Updated title",
-            Description = "Updated description",
-            CategoryId = CategoryId,
-            Priority = TicketPriority.High,
-            Status = TicketStatus.Closed
-        };
+        const string body = """
+            {
+              "title": "Ticket 101",
+              "description": "Ticket description",
+              "categoryId": 10,
+              "priority": 1,
+              "status": "closed"
+            }
+            """;
+        var request = JsonSerializer.Deserialize<UpdateTicketRequest>(
+            body,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        Assert.NotNull(request);
+        Assert.Null(typeof(UpdateTicketRequest).GetProperty(nameof(Ticket.Status)));
 
         var result = await service.UpdateAsync(
             101,
@@ -464,8 +478,9 @@ public class TicketServiceTests
             CreatePrincipal(EmployeeId, UserRole.Employee),
             CancellationToken.None);
 
-        Assert.Equal(TicketOperationStatus.Forbidden, result.Status);
+        Assert.Equal(TicketOperationStatus.Success, result.Status);
         Assert.Equal(TicketStatus.Open, (await dbContext.Tickets.SingleAsync(item => item.Id == 101)).Status);
+        Assert.Empty(await dbContext.TicketHistories.ToListAsync());
     }
 
     [Fact]

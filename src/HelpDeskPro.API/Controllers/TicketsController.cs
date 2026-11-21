@@ -79,6 +79,82 @@ public sealed class TicketsController(ITicketService ticketService) : Controller
         };
     }
 
+    [HttpPut("{id:int}/status")]
+    [Authorize(Policy = AuthorizationPolicies.AgentOrAdmin)]
+    [ProducesResponseType<TicketResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketResponse>> UpdateStatus(
+        int id,
+        UpdateTicketStatusRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await ticketService.UpdateStatusAsync(id, request, User, cancellationToken);
+        return result.Status switch
+        {
+            TicketOperationStatus.Success when result.Ticket is not null => Ok(result.Ticket),
+            TicketOperationStatus.InvalidRequest => BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Invalid ticket status transition",
+                Detail = "The requested status is invalid or is not an allowed transition."
+            }),
+            TicketOperationStatus.Forbidden => Forbid(),
+            TicketOperationStatus.NotFound => NotFound(),
+            _ => throw new InvalidOperationException("Ticket status update returned an invalid result.")
+        };
+    }
+
+    [HttpPost("{id:int}/comments")]
+    [ProducesResponseType<TicketCommentResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketCommentResponse>> CreateComment(
+        int id,
+        CreateTicketCommentRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await ticketService.CreateCommentAsync(id, request, User, cancellationToken);
+        return result.Status switch
+        {
+            TicketOperationStatus.Success when result.Comment is not null =>
+                CreatedAtAction(nameof(GetComments), new { id }, result.Comment),
+            TicketOperationStatus.InvalidRequest => BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Invalid ticket comment",
+                Detail = "Comment text must contain non-whitespace characters and be at most 4000 characters."
+            }),
+            TicketOperationStatus.Forbidden => Forbid(),
+            TicketOperationStatus.NotFound => NotFound(),
+            _ => throw new InvalidOperationException("Ticket comment creation returned an invalid result.")
+        };
+    }
+
+    [HttpGet("{id:int}/comments")]
+    [ProducesResponseType<IReadOnlyList<TicketCommentResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<TicketCommentResponse>>> GetComments(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var comments = await ticketService.GetCommentsAsync(id, User, cancellationToken);
+        return comments is null ? NotFound() : Ok(comments);
+    }
+
+    [HttpGet("{id:int}/history")]
+    [ProducesResponseType<IReadOnlyList<TicketHistoryResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<TicketHistoryResponse>>> GetHistory(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var history = await ticketService.GetHistoryAsync(id, User, cancellationToken);
+        return history is null ? NotFound() : Ok(history);
+    }
+
     [HttpPut("{id:int}/assignment")]
     [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
     [ProducesResponseType<TicketAssignmentResponse>(StatusCodes.Status200OK)]
